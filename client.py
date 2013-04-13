@@ -1,24 +1,24 @@
 #!/usr/bin/env python2
 # -*- coding: utf-8 -*-
-from lib.communication import base
 
 __author__ = 'Elia_Reshetov'
 __version__ = '1.0'
 
 import socket
+import logging
 
+logger = logging.getLogger('')
 
-class Client(base.Client):
+class TCPClient(object):
     """Base client class"""
-
+    
     def __init__(self,
                  host,
                  port,
-                 handler):
-        base.Client.__init__(self)
+                 RequestHandlerClass):
         self.host = host
         self.port = port
-        self.handler = handler
+        self.RequestHandlerClass = RequestHandlerClass
         self.socket = None
 
     def connect(self, ):
@@ -29,29 +29,30 @@ class Client(base.Client):
         """
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
-            self.logger.info('Try connect to {}:{}'.format(self.host,
-                                                      self.port))
+            logger.info('Try connect to {}:{}'.format(self.host,
+                                                         self.port))
             self.socket.connect((self.host, self.port))
-            self.logger.info('Connection established to {}:{}, {}'.format(
+            logger.info('Connection established to {}:{}, {}'.format(
                 self.host,
                 self.port,
                 self.socket))
         except socket.error as err:
-            self.logger.error("Can't connect to {}:{}, {}".format(self.host,
+            logger.error("Can't connect to {}:{}, {}".format(self.host,
                                                              self.port,
                                                              err))
-            self.handler.handle_error(err)
+            self.RequestHandlerClass.handle_error(err)
             return
 
         try:
-            self.handler.handle_connection(self.socket,
+            self.RequestHandlerClass.handle_connection(self.socket,
                                                        self.host,
                                                        self.port)
         finally:
             self.socket.close()
-            self.logger.info('Connection close for {}:{}, {}'.format(self.host,
+            logger.info('Connection close for {}:{}, {}'.format(self.host,
                                                                 self.port,
                                                                 self.socket))
+
 
     def send(self, data):
         """Send a data string to the socket.
@@ -60,7 +61,7 @@ class Client(base.Client):
         """
         sent = self.socket.send(data)
         if sent < len(data):
-            self.handler.handle_error()
+            self.RequestHandlerClass.handle_error()
         print 'send', sent, len(data)
 
     def recv(self, buf_size=1024):
@@ -76,5 +77,19 @@ class Client(base.Client):
     def close(self):
         """Close connection"""
         self.socket.close()
-        self.logger.info('Connection closed {}:{}'.format(self.host,
+        logger.info('Connection closed {}:{}'.format(self.host,
                                                      self.port))
+
+class BaseRequestHandler(object):
+
+    def handle_connection(self, connection, host, port):
+        pass
+
+    def handle_error(self, exception):
+        pass
+
+#    def handle_connection(self, connection, client_addr):
+#        pass
+
+if __name__ == '__main__':
+    print "This is python module '{}'".format(__file__)

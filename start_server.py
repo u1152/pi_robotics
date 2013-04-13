@@ -1,11 +1,32 @@
+#!/usr/bin/env python2
+# -*- coding: utf-8 -*-
+import Rover5
+
+__author__ = 'Elia_Reshetov'
 __version__ = '1.0'
 
 import os
 import sys
+import struct
 import argparse
 import logging
+import threading
+import time
+#import SocketServer
 
-from lib.communication.rcp.server import Server as RcpServer
+import wiringpi as wp
+
+from server import TCPServer, BaseRequestHandler
+
+from server_settings import main as main_settings, \
+    logging as log_settings, \
+    robot_api
+#    server as server_settings, \
+
+#import rcp
+
+rover5 = Rover5.Rover5()
+
 
 def parse_args():
     """
@@ -16,20 +37,14 @@ def parse_args():
     parser = argparse.ArgumentParser(
         add_help=True,
         prefix_chars='-',
-        description='Python socket server'
-    )
-    parser.add_argument('robot',
-                        type=str,
-                        help='Robot class file (.py)'
-    )
+        version=main_settings['VERSION'],
+        description='Python socket server')
     parser.add_argument('host',
                         type=str,
-                        help='Host addr'
-    )
+                        help='Host addr')
     parser.add_argument('port',
                         type=int,
-                        help='Listen port'
-    )
+                        help='Lesten port')
     #    parser.add_argument('--bufsize',
     #                        type=int,
     #                        default=server_settings['BUFSIZE'],
@@ -51,13 +66,6 @@ def parse_args():
     params = parser.parse_args()
     return params
 
-log_settings = dict(
-    logfile   = "start_server.log",
-    infosplit = ' : ',
-    logformat = '%(asctime)-6s: %(levelname)-8s : %(message)s',
-    strftime  = '%d.%m.%Y %H:%M:%S',
-    loglevel  = logging.DEBUG,
-    )
 
 def config_logging():
     """
@@ -78,6 +86,33 @@ def config_logging():
     logger.setLevel(log_settings['loglevel'])
     return logger
 
+class ServerHandler(BaseRequestHandler):
+#    def __init__(self):
+#        super(self)
+#        rover5 = Rover5.Rover5()
+
+    def handle_connection(self, connection, client_address):
+        while True:
+            recieved = connection.recv(12)
+
+            if recieved:
+                print 'recv({})={}'.format(len(recieved), \
+                    ' '.join(['{:X}'.format(ord(byte)) for byte in recieved])), \
+                    '|', recieved
+
+                rover5.setSpeed(int(recieved[2:5]), int(recieved[5:8]))
+                rover5.setDirection(int(recieved[0]), int(recieved[1]))
+                rover5.turnTurret(int(recieved[8:12]))
+                connection.send('OK')
+            else:
+                print 'recv 0 bytes', recieved
+                connection.send('error: {}'.format('recv 0 bytes'))
+
+ 
+    def handle_error(self, exception):
+        print 'stop!'
+        self.rover5.stop()
+
 def main(argv=None):
     if argv is None:
         argv = sys.argv
@@ -85,14 +120,14 @@ def main(argv=None):
     config_logging()
     print params
 
-    sys.path.append(os.path.dirname(params.robot))
-    exec('from %s import Robot' % os.path.basename(params.robot).rstrip('.py'))
-
-    robot = Robot(debug=True)
-    server = RcpServer(params.host, params.port, robot)
-
+    handler = ServerHandler()
+    server = TCPServer(params.host,
+                       params.port,
+                       handler,
+                       activate=True, )
     # max_connections=params.max_clients)
     server.start()
+
 
 if __name__ == '__main__':
     # os.system('cls')
